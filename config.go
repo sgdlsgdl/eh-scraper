@@ -3,6 +3,8 @@ package main
 import (
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -29,27 +31,31 @@ type Config struct {
 
 	TgBotToken string `yaml:"TgBotToken"`
 	TgChatId   string `yaml:"TgChatId"`
+
+	Concurrency int `yaml:"Concurrency"`
+	MaxDay      int `yaml:"MaxDay"`
 }
 
 func (c Config) ToScraper() IScraper {
+	bs := &BaseScraper{
+		BaseUrl:     "https://e-hentai.org/",
+		SearchList:  c.SearchList,
+		Proxy:       c.Proxy,
+		Cookie:      c.Cookie,
+		Concurrency: c.Concurrency,
+		MinTime:     time.Now().AddDate(0, 0, -c.MaxDay),
+		Result:      make(map[string]ItemList),
+		mutex:       sync.Mutex{},
+	}
 	switch parseMode(c.Mode) {
 	case ExHentai:
+		bs.BaseUrl = "https://exhentai.org/"
 		return &ExHentaiScraper{
-			BaseScraper: BaseScraper{
-				BaseUrl:    "https://exhentai.org/",
-				SearchList: c.SearchList,
-				Proxy:      c.Proxy,
-				Cookie:     c.Cookie,
-			},
+			BaseScraper: bs,
 		}
 	default:
 		return &EHentaiScraper{
-			BaseScraper: BaseScraper{
-				BaseUrl:    "https://e-hentai.org/",
-				SearchList: c.SearchList,
-				Proxy:      c.Proxy,
-				Cookie:     c.Cookie,
-			},
+			BaseScraper: bs,
 		}
 	}
 }

@@ -1,4 +1,5 @@
-Mode: ExHentai
+Mode: E-Hentai
 SearchList:
-  - "?f_cats=767"
+  - artist:ashima$
 Proxy: socks5://127.0.0.1:7897
+Cookie: ""

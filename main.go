@@ -36,8 +36,14 @@ type Item struct {
 	Date    string `csv:"Date"`
 	Name    string `csv:"Name"`
 	Link    string `csv:"Link"`
+	Key     string `csv:"Key"`
 
 	Ts int64 `csv:"-"`
+}
+
+func (i Item) Before(tt time.Time) bool {
+	t, err := time.Parse("2006-01-02 15:04", i.Date)
+	return err == nil && t.Before(tt)
 }
 
 type ItemList []Item
@@ -74,10 +80,11 @@ func diff(newItems, oldItems ItemList) (total, delta ItemList) {
 
 func batchFetch(scraper IScraper) (res ItemList, err error) {
 	eg := errgroup.Group{}
-	for _, url := range scraper.Range() {
-		url := url
+	eg.SetLimit(scraper.GetConcurrency())
+	for _, key := range scraper.Range() {
+		key := key
 		eg.Go(func() error {
-			return fetch(scraper, url)
+			return fetch(scraper, key)
 		})
 	}
 	err = eg.Wait()
@@ -85,7 +92,8 @@ func batchFetch(scraper IScraper) (res ItemList, err error) {
 	return
 }
 
-func fetch(scraper IScraper, url string) error {
+func fetch(scraper IScraper, key string) error {
+	url := scraper.GetUrl(key)
 	errChan := make(chan error, 1)
 	c := colly.NewCollector()
 	if scraper.GetProxy() != "" {
@@ -96,14 +104,19 @@ func fetch(scraper IScraper, url string) error {
 			request.Headers.Set("cookie", scraper.GetCookie())
 		})
 	}
-	scraper.Do(c)
+	c.OnRequest(func(request *colly.Request) {
+		log.Printf("OnRequest %s | %s", key, request.URL.String())
+	})
 	c.OnError(func(response *colly.Response, err error) {
 		putErr(errChan, fmt.Errorf("OnError %s error %v", url, err))
 	})
+	scraper.Do(c, key)
+
 	mErr := c.Visit(url)
 	if mErr != nil {
 		putErr(errChan, fmt.Errorf("visit %s error %v", url, mErr))
 	}
+
 	return getErr(errChan)
 }
 

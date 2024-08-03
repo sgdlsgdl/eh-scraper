@@ -5,15 +5,19 @@ import (
 	"encoding/hex"
 	"github.com/gocolly/colly/v2"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
+	"time"
 )
 
 type IScraper interface {
 	Range() []string
 	GetProxy() string
 	GetCookie() string
-	Do(*colly.Collector)
+	GetConcurrency() int
+	Do(*colly.Collector, string)
+	GetUrl(string) string
 	GetResult() ItemList
 }
 
@@ -23,15 +27,15 @@ type BaseScraper struct {
 	Proxy      string
 	Cookie     string
 
-	Result ItemList
+	Concurrency int
+	MinTime     time.Time
+
+	Result map[string]ItemList
 	mutex  sync.Mutex
 }
 
 func (s *BaseScraper) Range() (res []string) {
-	for _, str := range s.SearchList {
-		res = append(res, s.BaseUrl+str)
-	}
-	return
+	return s.SearchList
 }
 
 func (s *BaseScraper) GetProxy() string {
@@ -42,28 +46,58 @@ func (s *BaseScraper) GetCookie() string {
 	return s.Cookie
 }
 
-func (s *BaseScraper) Do(*colly.Collector) {
+func (s *BaseScraper) GetConcurrency() int {
+	return s.Concurrency
+}
+
+func (s *BaseScraper) Do(*colly.Collector, string) {
 	panic("implement me")
 }
 
+func (s *BaseScraper) GetUrl(key string) string {
+	return s.BaseUrl + "?f_search=" + url.QueryEscape(key)
+}
+
+func (s *BaseScraper) putItem(key string, item Item) {
+	s.mutex.Lock()
+	ls := s.Result[key]
+	ls = append(ls, item)
+	s.Result[key] = ls
+	s.mutex.Unlock()
+}
+
 func (s *BaseScraper) GetResult() ItemList {
-	return s.Result
+	var ls ItemList
+	s.mutex.Lock()
+	for _, key := range s.SearchList {
+		ll := s.Result[key]
+		if len(ll) == 0 {
+			log.Printf("search %s not found", key)
+		}
+		for _, item := range ll {
+			if !item.Before(s.MinTime) {
+				ls = append(ls, item)
+			}
+		}
+	}
+	s.mutex.Unlock()
+	return ls
 }
 
 type ExHentaiScraper struct {
-	BaseScraper
+	*BaseScraper
 }
 
-func (s *ExHentaiScraper) Do(c *colly.Collector) {
+func (s *ExHentaiScraper) Do(c *colly.Collector, key string) {
 	c2 := c.Clone()
 	c2.OnRequest(func(request *colly.Request) {
 		request.Headers.Set("cookie", s.GetCookie())
 	})
 	c2.OnResponse(func(response *colly.Response) {
-		url := response.Request.URL.String()
-		err := response.Save(basePath + getImageName(url))
+		img := response.Request.URL.String()
+		err := response.Save(basePath + getImageName(img))
 		if err != nil {
-			log.Printf("save %s error %v", url, err)
+			log.Printf("save %s error %v", img, err)
 		}
 	})
 
@@ -81,11 +115,12 @@ func (s *ExHentaiScraper) Do(c *colly.Collector) {
 			if item == empty {
 				return
 			}
-			_ = c2.Visit(item.Image)
+			if !item.Before(s.MinTime) {
+				_ = c2.Visit(item.Image)
+			}
 			item.Image = getImageName(item.Image)
-			s.mutex.Lock()
-			s.Result = append(s.Result, item)
-			s.mutex.Unlock()
+			item.Key = key
+			s.putItem(key, item)
 		})
 	})
 }
@@ -98,10 +133,10 @@ func getImageName(url string) string {
 }
 
 type EHentaiScraper struct {
-	BaseScraper
+	*BaseScraper
 }
 
-func (s *EHentaiScraper) Do(c *colly.Collector) {
+func (s *EHentaiScraper) Do(c *colly.Collector, key string) {
 	c.OnHTML("table.itg.gltm", func(table *colly.HTMLElement) {
 		table.ForEach("tr", func(i int, tr *colly.HTMLElement) {
 			var item, empty Item
@@ -116,9 +151,8 @@ func (s *EHentaiScraper) Do(c *colly.Collector) {
 			if item == empty {
 				return
 			}
-			s.mutex.Lock()
-			s.Result = append(s.Result, item)
-			s.mutex.Unlock()
+			item.Key = key
+			s.putItem(key, item)
 		})
 	})
 }

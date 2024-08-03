@@ -19,11 +19,11 @@ const (
 
 const (
 	mdTemplateStr = `
-# emm
-| Gallery | Image | Date | Name | Link |
-|---|---|---|---|---|
+# data
+| Gallery | Image | Date | Name | Link | Key |
+|---|---|---|---|---|---|
 {{- range .}}
-| {{.Gallery}} | <img src="{{.Image}}" width="50"> | {{.Date}} | {{.Name}} | [Link]({{.Link}}) |
+| {{.Gallery}} | <img src="{{.Image}}" width="50"> | {{.Date}} | {{.Name}} | [Link]({{.Link}}) | {{.Key}} |
 {{- end}}
 `
 
@@ -31,29 +31,55 @@ const (
 <!DOCTYPE html>
 <html>
 <head>
-<title>emm</title>
+    <meta charset="UTF-8">
+    <title>Data</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+        }
+        th, td {
+            text-align: center;
+            vertical-align: middle;
+        }
+        img {
+            max-width: 100px;
+            height: auto;
+        }
+    </style>
 </head>
 <body>
-<table>
-    <thead>
-        <tr>
-            <th>Gallery</th>
-            <th>Image</th>
-            <th>Date</th>
-            <th>Link</th>
-        </tr>
-    </thead>
-    <tbody>
-        {{range .}}
-        <tr>
-            <td>{{.Gallery}}</td>
-            <td><img src="{{.Image}}" alt="{{.Name}}"></td>
-            <td>{{.Date}}</td>
-            <td><a href="{{.Link}}">{{.Name}}</a></td>
-        </tr>
-        {{end}}
-    </tbody>
-</table>
+<div class="container">
+    <h2 class="text-center my-4">Data Gallery</h2>
+    <table class="table table-striped table-bordered">
+        <thead class="thead-dark">
+            <tr>
+                <th>Gallery</th>
+                <th>Image</th>
+                <th>Date</th>
+                <th>Link</th>
+                <th>Key</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .}}
+            <tr>
+                <td>{{.Gallery}}</td>
+                <td><img src="{{.Image}}" alt="{{.Name}}" class="img-fluid"></td>
+                <td>{{.Date}}</td>
+                <td><a href="{{.Link}}" class="btn btn-primary">{{.Name}}</a></td>
+                <td>{{.Key}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
 `
@@ -68,6 +94,12 @@ func readConfig(path string) Config {
 	err = yaml.Unmarshal(yamlBytes, &config)
 	if err != nil {
 		log.Fatalf("Failed to decode Yaml: %v", err)
+	}
+	if config.Concurrency <= 0 {
+		config.Concurrency = 5
+	}
+	if config.MaxDay <= 0 {
+		config.MaxDay = 90
 	}
 	return config
 }
