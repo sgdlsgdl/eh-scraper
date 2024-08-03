@@ -63,13 +63,17 @@ func (ls ItemList) Adjust() {
 }
 
 func diff(newItems, oldItems ItemList) (total, delta ItemList) {
-	oldM := make(map[string]Item)
+	oldM := make(map[string]struct{})
+	newM := make(map[string]struct{})
 	for _, item := range oldItems {
-		oldM[item.Link] = item
+		oldM[item.Link] = struct{}{}
 	}
 	for _, item := range newItems {
-		if _, ok := oldM[item.Link]; !ok {
+		_, existOld := oldM[item.Link]
+		_, existNew := newM[item.Link]
+		if !existOld && !existNew {
 			delta = append(delta, item)
+			newM[item.Link] = struct{}{}
 		}
 	}
 	total = append(oldItems, delta...)
