@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -37,6 +38,7 @@ func batchSend(proxy, token, chatId string, items ItemList) {
 
 	for _, item := range items {
 		sendSingle(token, chatId, item)
+		time.Sleep(time.Second * 5)
 	}
 }
 

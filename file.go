@@ -46,7 +46,7 @@ const (
             vertical-align: middle;
         }
         img {
-            max-width: 100px;
+            max-width: 1000px;
             height: auto;
         }
     </style>
@@ -68,7 +68,7 @@ const (
             {{range .}}
             <tr>
                 <td>{{.Gallery}}</td>
-                <td><img src="{{.Image}}" alt="{{.Name}}" class="img-fluid"></td>
+                <td><img src="{{.Image}}" alt="{{.Name}}"></td>
                 <td>{{.Date}}</td>
                 <td><a href="{{.Link}}" class="btn btn-primary">{{.Name}}</a></td>
                 <td>{{.Key}}</td>

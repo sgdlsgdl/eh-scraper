@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/gocolly/colly/v2"
 	"golang.org/x/sync/errgroup"
@@ -27,7 +28,7 @@ func main() {
 	saveMd(mdPath, delta)
 	saveHtml(htmlPath, delta)
 
-	batchSend(cfg.Proxy, cfg.TgBotToken, cfg.TgChatId, newItems)
+	batchSend(cfg.Proxy, cfg.TgBotToken, cfg.TgChatId, delta)
 }
 
 type Item struct {
@@ -83,12 +84,23 @@ func diff(newItems, oldItems ItemList) (total, delta ItemList) {
 }
 
 func batchFetch(scraper IScraper) (res ItemList, err error) {
-	eg := errgroup.Group{}
+	eg, ctx := errgroup.WithContext(context.Background())
 	eg.SetLimit(scraper.GetConcurrency())
 	for _, key := range scraper.Range() {
 		key := key
 		eg.Go(func() error {
-			return fetch(scraper, key)
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+			}
+			err := fetch(scraper, key)
+			if err != nil {
+				log.Printf("fetch fail %s", key)
+			} else {
+				log.Printf("fetch success %s", key)
+			}
+			return err
 		})
 	}
 	err = eg.Wait()
@@ -109,7 +121,7 @@ func fetch(scraper IScraper, key string) error {
 		})
 	}
 	c.OnRequest(func(request *colly.Request) {
-		log.Printf("OnRequest %s | %s", key, request.URL.String())
+		//log.Printf("OnRequest %s | %s", key, request.URL.String())
 	})
 	c.OnError(func(response *colly.Response, err error) {
 		putErr(errChan, fmt.Errorf("OnError %s error %v", url, err))
